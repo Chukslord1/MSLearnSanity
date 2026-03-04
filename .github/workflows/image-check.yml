@@ -1,0 +1,23 @@
+name: Image Validation
+
+on:
+  pull_request:
+    paths:
+      - '**.png'
+      - '**.jpg'
+      - '**.jpeg'
+      - '**.webp'
+
+jobs:
+  check-images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v39
+
+      - name: Run image checker
+        run: python check_images.py
