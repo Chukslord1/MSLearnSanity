@@ -13,28 +13,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Install Dependencies
+      - name: Get changed files
+        id: changed
+        uses: tj-actions/changed-files@v39
+
+      - name: Install dependencies
         run: pip install requests
 
-      - name: Upload Images to Temporary Host
-        id: upload
-        run: |
-          mkdir -p temp_urls
-          for img in $(git diff --name-only origin/main | grep -E '\.(png|jpg|jpeg|webp)$'); do
-            # Example: using free temporary hosting via imgbb API
-            RESPONSE=$(curl -s -F "image=@$img" \
-              -F "key=${{ secrets.IMGBB_API_KEY }}" \
-              https://api.imgbb.com/1/upload)
-            URL=$(echo $RESPONSE | jq -r '.data.url')
-            echo "IMAGE_URL_$img=$URL" >> $GITHUB_ENV
-          done
-
-      - name: Run Image Checker
+      - name: Run image checker
         env:
           ZEN_API_KEY: ${{ secrets.ZEN_API_KEY }}
           SIGHTENGINE_USER: ${{ secrets.SIGHTENGINE_USER }}
           SIGHTENGINE_SECRET: ${{ secrets.SIGHTENGINE_SECRET }}
+          CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
         run: python check_images.py
