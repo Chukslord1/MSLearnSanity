@@ -11,7 +11,6 @@ AI_THRESHOLD = 0.85   # AI probability threshold
 
 # ====== GET CHANGED IMAGES ======
 def get_changed_images():
-    """Return list of image files changed in the last commit"""
     result = subprocess.run(
         ["git", "diff", "--name-only", "HEAD^", "HEAD"],
         capture_output=True,
@@ -19,6 +18,7 @@ def get_changed_images():
     )
     files = result.stdout.splitlines()
     return [f for f in files if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))]
+
 
 # ====== PLAGIARISM CHECK (Zenserp) ======
 def check_plagiarism(image_path):
