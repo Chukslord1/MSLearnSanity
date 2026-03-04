@@ -13,15 +13,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout the repo
       - uses: actions/checkout@v3
 
+      # 2️⃣ Get changed files in the PR
       - name: Get changed files
         id: changed
         uses: tj-actions/changed-files@v39
 
+      # 3️⃣ Install dependencies
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests jq
 
+      # 4️⃣ Upload PR images to imgbb to get public URLs
+      - name: Upload PR images
+        run: |
+          for img in ${{ steps.changed.outputs.all_changed_files }}; do
+            if [[ "$img" =~ \.(png|jpg|jpeg|webp)$ ]]; then
+              echo "Uploading $img..."
+              RESPONSE=$(curl -s -F "image=@$img" -F "key=${{ secrets.IMGBB_API_KEY }}" https://api.imgbb.com/1/upload)
+              URL=$(echo $RESPONSE | jq -r '.data.url')
+              if [ "$URL" != "null" ]; then
+                echo "IMAGE_URL_$(basename $img)=$URL" >> $GITHUB_ENV
+                echo "Uploaded $img → $URL"
+              else
+                echo "⚠️ Failed to upload $img"
+              fi
+            fi
+          done
+
+      # 5️⃣ Run the image checker
       - name: Run image checker
         env:
           ZEN_API_KEY: ${{ secrets.ZEN_API_KEY }}
