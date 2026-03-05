@@ -7,35 +7,24 @@ SIGHTENGINE_USER = os.getenv("SIGHTENGINE_USER")
 SIGHTENGINE_SECRET = os.getenv("SIGHTENGINE_SECRET")
 
 AI_THRESHOLD = 0.85
-PLAGIARISM_THRESHOLD = 1  # fail if at least 1 match
+PLAGIARISM_THRESHOLD = 1  # fail if at least 1 candidate URL
 
 
 # ====== GET CHANGED IMAGES ======
 def get_changed_images():
     changed = os.getenv("CHANGED_FILES", "")
-
-    # GitHub action outputs files separated by spaces
-    files = changed.split()
-
-    images = [
-        f.strip()
-        for f in files
-        if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
-    ]
-
+    files = changed.split()  # GitHub outputs separated by spaces
+    images = [f.strip() for f in files if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))]
     return images
 
 
 # ====== COPYSEEKER REVERSE IMAGE SEARCH ======
-# ====== PLAGIARISM DETECTION (web) ======
 def check_plagiarism(image_path):
     image_url = os.getenv("IMAGE_URL_" + os.path.basename(image_path))
-
     if not image_url:
         print(f"⚠️ No public URL for {image_path}, skipping plagiarism check.")
         return False
 
-    # Use Copyseeker, Zenserp, or any reverse image search API
     headers = {
         "X-RapidAPI-Key": COPYSEEKER_KEY,
         "X-RapidAPI-Host": "reverse-image-search-by-copyseeker.p.rapidapi.com"
@@ -43,9 +32,9 @@ def check_plagiarism(image_path):
 
     params = {"image_url": image_url}
 
-    # Example with Copyseeker /search endpoint
+    # Correct endpoint: base URL only
     response = requests.get(
-        "https://reverse-image-search-by-copyseeker.p.rapidapi.com/search",
+        "https://reverse-image-search-by-copyseeker.p.rapidapi.com/",
         headers=headers,
         params=params
     )
@@ -55,19 +44,11 @@ def check_plagiarism(image_path):
         return False
 
     data = response.json()
-
-    # candidate URLs returned by the API
-    candidate_urls = (
-        data.get("results", [])
-        or data.get("similar_images", [])
-        or data.get("matches", [])
-    )
-
+    candidate_urls = data.get("results", []) or data.get("similar_images", []) or data.get("matches", [])
     print(f"🔎 Candidate URLs found: {len(candidate_urls)}")
-    if len(candidate_urls) > 0:
-        return True  # fail the CI
-    return False
-    
+
+    return len(candidate_urls) > 0  # fail if at least 1 candidate URL
+
 
 # ====== AI DETECTION (Sightengine) ======
 def check_ai(image_path):
@@ -81,43 +62,34 @@ def check_ai(image_path):
                 "api_secret": SIGHTENGINE_SECRET
             }
         )
-
     data = response.json()
-
-    prob = data.get("genai", {}).get("prob", 0)
-
-    return prob
+    return data.get("genai", {}).get("prob", 0)
 
 
 # ====== MAIN ======
 def main():
-
     if not COPYSEEKER_KEY:
         print("❌ COPYSEEKER_KEY not found in environment.")
         sys.exit(1)
 
     images = get_changed_images()
-
     if not images:
         print("No new images found in this PR.")
         return
 
     failed = False
-
     for img in images:
         print(f"\n🔍 Checking {img}...")
 
         # AI detection
         ai_prob = check_ai(img)
         print(f"🤖 AI probability: {ai_prob}")
-
         if ai_prob >= AI_THRESHOLD:
             print(f"❌ {img} appears AI-generated.")
             failed = True
 
-        # plagiarism detection
+        # Plagiarism detection
         plag = check_plagiarism(img)
-
         if plag:
             print(f"❌ {img} appears to exist elsewhere online.")
             failed = True
