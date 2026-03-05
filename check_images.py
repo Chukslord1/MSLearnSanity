@@ -27,6 +27,7 @@ def get_changed_images():
 
 
 # ====== COPYSEEKER REVERSE IMAGE SEARCH ======
+# ====== PLAGIARISM DETECTION (web) ======
 def check_plagiarism(image_path):
     image_url = os.getenv("IMAGE_URL_" + os.path.basename(image_path))
 
@@ -34,19 +35,17 @@ def check_plagiarism(image_path):
         print(f"⚠️ No public URL for {image_path}, skipping plagiarism check.")
         return False
 
-    url = "https://reverse-image-search-by-copyseeker.p.rapidapi.com/"
-
+    # Use Copyseeker, Zenserp, or any reverse image search API
     headers = {
         "X-RapidAPI-Key": COPYSEEKER_KEY,
         "X-RapidAPI-Host": "reverse-image-search-by-copyseeker.p.rapidapi.com"
     }
 
-    params = {
-        "image_url": image_url
-    }
+    params = {"image_url": image_url}
 
+    # Example with Copyseeker /search endpoint
     response = requests.get(
-        url,
+        "https://reverse-image-search-by-copyseeker.p.rapidapi.com/search",
         headers=headers,
         params=params
     )
@@ -57,15 +56,17 @@ def check_plagiarism(image_path):
 
     data = response.json()
 
-    matches = (
+    # candidate URLs returned by the API
+    candidate_urls = (
         data.get("results", [])
         or data.get("similar_images", [])
         or data.get("matches", [])
     )
 
-    print(f"🔎 Reverse image matches found: {len(matches)}")
-
-    return len(matches) > 0
+    print(f"🔎 Candidate URLs found: {len(candidate_urls)}")
+    if len(candidate_urls) > 0:
+        return True  # fail the CI
+    return False
     
 
 # ====== AI DETECTION (Sightengine) ======
