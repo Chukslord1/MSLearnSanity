@@ -28,6 +28,12 @@ def get_changed_images():
 
 # ====== COPYSEEKER REVERSE IMAGE SEARCH ======
 def check_plagiarism(image_path):
+    image_url = os.getenv("IMAGE_URL_" + os.path.basename(image_path))
+
+    if not image_url:
+        print(f"⚠️ No public URL for {image_path}, skipping plagiarism check.")
+        return False
+
     url = "https://reverse-image-search-by-copyseeker.p.rapidapi.com/"
 
     headers = {
@@ -35,14 +41,15 @@ def check_plagiarism(image_path):
         "X-RapidAPI-Host": "reverse-image-search-by-copyseeker.p.rapidapi.com"
     }
 
-    with open(image_path, "rb") as img:
-        files = {"image": img}
+    params = {
+        "image_url": image_url
+    }
 
-        response = requests.post(
-            url,
-            headers=headers,
-            files=files
-        )
+    response = requests.get(
+        url,
+        headers=headers,
+        params=params
+    )
 
     if response.status_code != 200:
         print("⚠️ Copyseeker request failed:", response.text)
@@ -50,7 +57,6 @@ def check_plagiarism(image_path):
 
     data = response.json()
 
-    # handle multiple possible response formats
     matches = (
         data.get("results", [])
         or data.get("similar_images", [])
@@ -59,8 +65,8 @@ def check_plagiarism(image_path):
 
     print(f"🔎 Reverse image matches found: {len(matches)}")
 
-    return len(matches) >= PLAGIARISM_THRESHOLD
-
+    return len(matches) > 0
+    
 
 # ====== AI DETECTION (Sightengine) ======
 def check_ai(image_path):
