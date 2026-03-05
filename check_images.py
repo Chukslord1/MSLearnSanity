@@ -7,28 +7,32 @@ SIGHTENGINE_USER = os.getenv("SIGHTENGINE_USER")
 SIGHTENGINE_SECRET = os.getenv("SIGHTENGINE_SECRET")
 
 AI_THRESHOLD = 0.85
-PLAGIARISM_THRESHOLD = 3  # number of matches before failing
+PLAGIARISM_THRESHOLD = 1  # fail if at least 1 match
 
 
 # ====== GET CHANGED IMAGES ======
 def get_changed_images():
     changed = os.getenv("CHANGED_FILES", "")
-    files = changed.split(",") if changed else []
+
+    # GitHub action outputs files separated by spaces
+    files = changed.split()
+
     images = [
         f.strip()
         for f in files
         if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
     ]
+
     return images
 
 
 # ====== COPYSEEKER REVERSE IMAGE SEARCH ======
 def check_plagiarism(image_path):
-    url = "https://reverse-image-search-by-copyseeker.p.rapidapi.com/search"
+    url = "https://reverse-image-search-by-copyseeker.p.rapidapi.com/"
 
     headers = {
-        "x-rapidapi-key": COPYSEEKER_KEY,
-        "x-rapidapi-host": "reverse-image-search-by-copyseeker.p.rapidapi.com"
+        "X-RapidAPI-Key": COPYSEEKER_KEY,
+        "X-RapidAPI-Host": "reverse-image-search-by-copyseeker.p.rapidapi.com"
     }
 
     with open(image_path, "rb") as img:
@@ -46,7 +50,13 @@ def check_plagiarism(image_path):
 
     data = response.json()
 
-    matches = data.get("results", [])
+    # handle multiple possible response formats
+    matches = (
+        data.get("results", [])
+        or data.get("similar_images", [])
+        or data.get("matches", [])
+    )
+
     print(f"🔎 Reverse image matches found: {len(matches)}")
 
     return len(matches) >= PLAGIARISM_THRESHOLD
@@ -66,11 +76,19 @@ def check_ai(image_path):
         )
 
     data = response.json()
-    return data.get("genai", {}).get("prob", 0)
+
+    prob = data.get("genai", {}).get("prob", 0)
+
+    return prob
 
 
 # ====== MAIN ======
 def main():
+
+    if not COPYSEEKER_KEY:
+        print("❌ COPYSEEKER_KEY not found in environment.")
+        sys.exit(1)
+
     images = get_changed_images()
 
     if not images:
