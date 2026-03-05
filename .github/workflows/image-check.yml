@@ -23,9 +23,31 @@ jobs:
 
       # 3️⃣ Install dependencies
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests jq
 
-      # 4️⃣ Run the image checker
+      # 4️⃣ Upload PR images to imgbb to get public URLs
+      - name: Upload PR images
+        run: |
+          # Save changed files to a temp file and split correctly
+          echo "${{ steps.changed.outputs.all_changed_files }}" | tr ' ' '\n' > files.txt
+
+          while read img; do
+            if [[ "$img" =~ \.(png|jpg|jpeg|webp)$ ]]; then
+              echo "Uploading $img..."
+              RESPONSE=$(curl -s -F "image=@$img" -F "key=${{ secrets.IMGBB_API_KEY }}" https://api.imgbb.com/1/upload)
+              URL=$(echo $RESPONSE | jq -r '.data.url')
+              if [ "$URL" != "null" ] && [ "$URL" != "" ]; then
+                ENV_NAME="IMAGE_URL_$(basename "$img")"
+                echo "$ENV_NAME=$URL" >> $GITHUB_ENV
+                echo "Uploaded $img → $URL"
+              else
+                echo "⚠️ Failed to upload $img"
+                echo "$RESPONSE"
+              fi
+            fi
+          done < files.txt
+
+      # 5️⃣ Run the image checker
       - name: Run image checker
         env:
           COPYSEEKER_KEY: ${{ secrets.COPYSEEKER_KEY }}
