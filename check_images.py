@@ -2,13 +2,16 @@ import os
 import sys
 import requests
 import re
+import openai
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 SIGHTENGINE_USER = os.getenv("SIGHTENGINE_USER")
 SIGHTENGINE_SECRET = os.getenv("SIGHTENGINE_SECRET")
 GOOGLE_VISION_KEY = os.getenv("GOOGLE_VISION_KEY")
 
 AI_THRESHOLD = 0.85
 PLAGIARISM_THRESHOLD = 1
+openai.api_key = OPENAI_API_KEY
 
 
 # ===== GET CHANGED IMAGES =====
@@ -90,49 +93,38 @@ def check_plagiarism(image_path):
         return False
 
 
+
+
 # ===== AI DETECTION =====
 def check_ai(image_path):
-
     if not os.path.isfile(image_path):
         print(f"⚠️ File not found: {image_path}")
         return 0
 
-    if not SIGHTENGINE_USER or not SIGHTENGINE_SECRET:
-        print("⚠️ Sightengine credentials missing.")
+    if not OPENAI_API_KEY:
+        print("⚠️ OpenAI API key missing.")
         return 0
 
     try:
-
-        with open(image_path, "rb") as img:
-
-            response = requests.post(
-                "https://api.sightengine.com/1.0/check.json",
-                files={"media": img},
-                data={
-                    "models": "genai",
-                    "api_user": SIGHTENGINE_USER,
-                    "api_secret": SIGHTENGINE_SECRET
-                },
-                timeout=30
+        with open(image_path, "rb") as img_file:
+            # Use the OpenAI Images "generation detection" endpoint
+            response = openai.images.analyze(
+                model="gpt-image-clip",
+                file=img_file
             )
 
-        if response.status_code != 200:
-            print("⚠️ Sightengine request failed:", response.text)
-            return 0
+        # The response usually contains "ai_likelihood" or similar
+        # Adjust this depending on the actual OpenAI response
+        ai_prob = response.get("ai_likelihood", 0)
 
-        data = response.json()
-
-        print("Sightengine response:", data)
-
-        # NEW correct field
-        prob = data.get("type", {}).get("ai_generated", 0)
-
-        return prob
+        print("OpenAI AI detection response:", response)
+        return ai_prob
 
     except Exception as e:
         print(f"⚠️ AI detection failed: {e}")
         return 0
-        
+
+
 
 # ===== MAIN =====
 def main():
