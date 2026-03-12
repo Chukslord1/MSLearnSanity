@@ -1,6 +1,7 @@
 import os
 import sys
 import requests
+import re
 
 SIGHTENGINE_USER = os.getenv("SIGHTENGINE_USER")
 SIGHTENGINE_SECRET = os.getenv("SIGHTENGINE_SECRET")
@@ -24,12 +25,19 @@ def get_changed_images():
     return images
 
 
+# ===== SANITIZE NAME (must match GitHub Action) =====
+def sanitize_filename(name):
+    return re.sub(r'[^a-zA-Z0-9]', '_', name)
+
+
 # ===== GET IMAGE URL FROM ENV =====
 def get_image_url(image_path):
 
-    name = os.path.basename(image_path)
+    filename = os.path.basename(image_path)
 
-    env_name = f"IMAGE_URL_{name}"
+    safe_name = sanitize_filename(filename)
+
+    env_name = f"IMAGE_URL_{safe_name}"
 
     url = os.getenv(env_name)
 
