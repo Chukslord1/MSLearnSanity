@@ -95,7 +95,7 @@ def check_plagiarism(image_path):
 
 
 
-# ===== AI DETECTION =====
+# ===== AI DETECTION =====# ===== AI DETECTION =====
 def check_ai(image_path):
     if not os.path.isfile(image_path):
         print(f"⚠️ File not found: {image_path}")
@@ -106,22 +106,41 @@ def check_ai(image_path):
         return 0
 
     try:
-        with open(image_path, "rb") as img_file:
-            # Use the OpenAI Images "generation detection" endpoint
-            response = openai.images.analyze(
-                model="gpt-image-clip",
-                file=img_file
-            )
+        # Read image bytes
+        with open(image_path, "rb") as f:
+            image_bytes = f.read()
 
-        # The response usually contains "ai_likelihood" or similar
-        # Adjust this depending on the actual OpenAI response
-        ai_prob = response.get("ai_likelihood", 0)
+        # Encode as base64
+        import base64
+        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
-        print("OpenAI AI detection response:", response)
+        # Prompt GPT-4o with the image
+        prompt = (
+            "You are an AI detection assistant.\n"
+            "Check if the following image is AI-generated.\n"
+            "Reply with a number between 0 and 1 indicating the probability it's AI-generated.\n\n"
+            f"data:image/png;base64,{image_b64}"
+        )
+
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0
+        )
+
+        result_text = response.choices[0].message.content.strip()
+        print("OpenAI AI detection response:", result_text)
+
+        # Extract numeric probability
+        match = re.search(r"([0-1](?:\.\d+)?)", result_text)
+        ai_prob = float(match.group(1)) if match else 0
+
         return ai_prob
 
     except Exception as e:
-        print(f"⚠️ AI detection failed: {e}")
+        print(f"⚠️ AI detection via OpenAI failed: {e}")
         return 0
 
 
