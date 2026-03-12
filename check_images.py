@@ -122,12 +122,10 @@ def check_ai(image_path):
 
         data = response.json()
 
-        # Debug print (helps verify API works)
         print("Sightengine response:", data)
 
-        genai = data.get("genai", {})
-
-        prob = genai.get("prob", 0)
+        # NEW correct field
+        prob = data.get("type", {}).get("ai_generated", 0)
 
         return prob
 
