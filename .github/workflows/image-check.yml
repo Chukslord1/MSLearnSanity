@@ -13,37 +13,58 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout the repo
-      - uses: actions/checkout@v3
 
-      # 2️⃣ Get changed files in the PR
+      # 1️⃣ Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+
+      # 2️⃣ Get changed files
       - name: Get changed files
         id: changed
         uses: tj-actions/changed-files@v39
+        with:
+          separator: "\n"
+
 
       # 3️⃣ Install dependencies
       - name: Install dependencies
-        run: pip install requests jq
+        run: pip install requests
 
-      # 4️⃣ Generate GitHub raw URLs for changed images
-      - name: Set GitHub raw URLs
+
+      # 4️⃣ Set environment variable with changed files
+      - name: Export changed files
         run: |
-          echo "${{ steps.changed.outputs.all_changed_files }}" | tr ' ' '\n' > files.txt
+          echo "CHANGED_FILES<<EOF" >> $GITHUB_ENV
+          echo "${{ steps.changed.outputs.all_changed_files }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+
+      # 5️⃣ Generate raw GitHub URLs
+      - name: Generate GitHub raw URLs
+        run: |
+
+          echo "${{ steps.changed.outputs.all_changed_files }}" > files.txt
 
           while read img; do
             if [[ "$img" =~ \.(png|jpg|jpeg|webp)$ ]]; then
-              RAW_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/$img"
+
+              RAW_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.head_ref }}/$img"
+
               ENV_NAME="IMAGE_URL_$(basename "$img")"
+
               echo "$ENV_NAME=$RAW_URL" >> $GITHUB_ENV
+
               echo "Set $ENV_NAME → $RAW_URL"
+
             fi
           done < files.txt
 
-      # 5️⃣ Run the image checker
+
+      # 6️⃣ Run the checker
       - name: Run image checker
         env:
           COPYSEEKER_KEY: ${{ secrets.COPYSEEKER_KEY }}
           SIGHTENGINE_USER: ${{ secrets.SIGHTENGINE_USER }}
           SIGHTENGINE_SECRET: ${{ secrets.SIGHTENGINE_SECRET }}
-          CHANGED_FILES: ${{ steps.changed.outputs.all_changed_files }}
         run: python check_images.py
