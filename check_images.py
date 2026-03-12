@@ -29,45 +29,41 @@ def get_changed_images():
 # ====== COPYSEEKER REVERSE IMAGE SEARCH ======
 def check_plagiarism(image_path):
 
-    image_url = os.getenv("IMAGE_URL_" + os.path.basename(image_path))
-
-    if not image_url:
-        print(f"⚠️ No public URL for {image_path}, skipping plagiarism check.")
-        return False
-
     headers = {
         "X-RapidAPI-Key": COPYSEEKER_KEY,
         "X-RapidAPI-Host": "reverse-image-search-by-copyseeker.p.rapidapi.com"
     }
 
-    with open(image_path, "rb") as f:
-        response = requests.post(
-            "https://reverse-image-search-by-copyseeker.p.rapidapi.com/",
-            headers=headers,
-            files={"image": f},
-            timeout=30
+    try:
+        with open(image_path, "rb") as f:
+            response = requests.post(
+                "https://reverse-image-search-by-copyseeker.p.rapidapi.com/",
+                headers=headers,
+                files={"image": f},
+                timeout=30
+            )
+
+        if response.status_code != 200:
+            print("⚠️ Copyseeker request failed:", response.text)
+            return False
+
+        data = response.json()
+
+        candidate_urls = (
+            data.get("results", [])
+            or data.get("similar_images", [])
+            or data.get("matches", [])
+            or []
         )
-    
+
+        print(f"🔎 Candidate URLs found: {len(candidate_urls)}")
+
+        return len(candidate_urls) >= PLAGIARISM_THRESHOLD
+
     except Exception as e:
         print(f"⚠️ Copyseeker request failed: {e}")
         return False
 
-    if response.status_code != 200:
-        print("⚠️ Copyseeker request failed:", response.text)
-        return False
-
-    data = response.json()
-
-    candidate_urls = (
-        data.get("results", [])
-        or data.get("similar_images", [])
-        or data.get("matches", [])
-        or []
-    )
-
-    print(f"🔎 Candidate URLs found: {len(candidate_urls)}")
-
-    return len(candidate_urls) >= PLAGIARISM_THRESHOLD
 
 
 # ====== AI DETECTION (Sightengine) ======
