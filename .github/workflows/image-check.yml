@@ -49,7 +49,10 @@ jobs:
           while read img; do
             if [[ "$img" =~ \.(png|jpg|jpeg|webp)$ ]]; then
       
-              RAW_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/$img"
+              # Encode filename for URLs (fix spaces)
+              ENCODED=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$img")
+      
+              RAW_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/$ENCODED"
       
               ENV_NAME="IMAGE_URL_$(basename "$img")"
       
