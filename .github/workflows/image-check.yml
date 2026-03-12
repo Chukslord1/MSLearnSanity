@@ -14,7 +14,7 @@ jobs:
 
     steps:
 
-      # 1️⃣ Checkout repo
+      # 1️⃣ Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
@@ -29,10 +29,12 @@ jobs:
 
       # 3️⃣ Install dependencies
       - name: Install dependencies
-        run: pip install requests
+        run: |
+          pip install --upgrade pip
+          pip install requests
 
 
-      # 4️⃣ Set environment variable with changed files
+      # 4️⃣ Export changed files
       - name: Export changed files
         run: |
           echo "CHANGED_FILES<<EOF" >> $GITHUB_ENV
@@ -43,33 +45,34 @@ jobs:
       # 5️⃣ Generate raw GitHub URLs
       - name: Generate GitHub raw URLs
         run: |
-      
+
           echo "${{ steps.changed.outputs.all_changed_files }}" > files.txt
-      
+
           while read img; do
             if [[ "$img" =~ \.(png|jpg|jpeg|webp)$ ]]; then
-      
-              # Encode filename for URLs (fix spaces)
+
+              # Encode filename for URL
               ENCODED=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" "$img")
-      
+
               RAW_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/$ENCODED"
-      
-              ENV_NAME="IMAGE_URL_$(basename "$img")"
-      
+
+              # sanitize variable name
+              SAFE_NAME=$(basename "$img" | sed 's/[^a-zA-Z0-9]/_/g')
+
+              ENV_NAME="IMAGE_URL_$SAFE_NAME"
+
               echo "$ENV_NAME=$RAW_URL" >> $GITHUB_ENV
-      
+
               echo "Set $ENV_NAME → $RAW_URL"
-      
+
             fi
           done < files.txt
 
 
-      # 6️⃣ Run the checker
+      # 6️⃣ Run checker
       - name: Run image checker
         env:
-          COPYSEEKER_KEY: ${{ secrets.COPYSEEKER_KEY }}
           SIGHTENGINE_USER: ${{ secrets.SIGHTENGINE_USER }}
           SIGHTENGINE_SECRET: ${{ secrets.SIGHTENGINE_SECRET }}
-          IMAGGA_KEY: ${{ secrets.IMAGGA_KEY }}
-          IMAGGA_SECRET: ${{ secrets.IMAGGA_SECRET }}
+          GOOGLE_VISION_KEY: ${{ secrets.GOOGLE_VISION_KEY }}
         run: python check_images.py
