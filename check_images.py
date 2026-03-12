@@ -41,12 +41,12 @@ def check_plagiarism(image_path):
     }
 
     with open(image_path, "rb") as f:
-    response = requests.post(
-        "https://reverse-image-search-by-copyseeker.p.rapidapi.com/",
-        headers=headers,
-        files={"image": f},
-        timeout=30
-    )
+        response = requests.post(
+            "https://reverse-image-search-by-copyseeker.p.rapidapi.com/",
+            headers=headers,
+            files={"image": f},
+            timeout=30
+        )
     
     except Exception as e:
         print(f"⚠️ Copyseeker request failed: {e}")
