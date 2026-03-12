@@ -5,11 +5,12 @@ import re
 import openai
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+SIGHTENGINE_USER = os.getenv("SIGHTENGINE_USER")
+SIGHTENGINE_SECRET = os.getenv("SIGHTENGINE_SECRET")
 GOOGLE_VISION_KEY = os.getenv("GOOGLE_VISION_KEY")
 
 AI_THRESHOLD = 0.85
 PLAGIARISM_THRESHOLD = 1
-
 openai.api_key = OPENAI_API_KEY
 
 
@@ -17,40 +18,84 @@ openai.api_key = OPENAI_API_KEY
 def get_changed_images():
     changed = os.getenv("CHANGED_FILES", "")
     files = changed.splitlines()
-    return [f.strip() for f in files if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))]
+
+    images = [
+        f.strip()
+        for f in files
+        if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+    ]
+
+    return images
+
+
+# ===== SANITIZE NAME (must match GitHub Action) =====
+def sanitize_filename(name):
+    return re.sub(r'[^a-zA-Z0-9]', '_', name)
+
+
+# ===== GET IMAGE URL FROM ENV =====
+def get_image_url(image_path):
+
+    filename = os.path.basename(image_path)
+
+    safe_name = sanitize_filename(filename)
+
+    env_name = f"IMAGE_URL_{safe_name}"
+
+    url = os.getenv(env_name)
+
+    if not url:
+        print(f"⚠️ No public URL found for {image_path}")
+        return None
+
+    return url
 
 
 # ===== GOOGLE VISION REVERSE IMAGE SEARCH =====
 def check_plagiarism(image_path):
+
+    image_url = get_image_url(image_path)
+
+    if not image_url:
+        return False
+
     try:
-        with open(image_path, "rb") as f:
-            img_bytes = f.read()
+
         response = requests.post(
             f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_KEY}",
             json={
                 "requests": [
                     {
-                        "image": {"content": img_bytes.decode('ISO-8859-1')},
+                        "image": {"source": {"imageUri": image_url}},
                         "features": [{"type": "WEB_DETECTION"}]
                     }
                 ]
             },
             timeout=30
         )
+
         if response.status_code != 200:
             print("⚠️ Google Vision request failed:", response.text)
             return False
+
         data = response.json()
+
         web = data["responses"][0].get("webDetection", {})
+
         matches = web.get("pagesWithMatchingImages", [])
+
         print(f"🔎 Matching pages found: {len(matches)}")
+
         return len(matches) >= PLAGIARISM_THRESHOLD
+
     except Exception as e:
         print(f"⚠️ Plagiarism check failed: {e}")
         return False
 
 
-# ===== AI DETECTION VIA GPT-4O WITH LOCAL IMAGE =====
+
+
+# ===== AI DETECTION =====
 def check_ai(image_path):
     if not os.path.isfile(image_path):
         print(f"⚠️ File not found: {image_path}")
@@ -62,30 +107,30 @@ def check_ai(image_path):
 
     try:
         with open(image_path, "rb") as img_file:
-            response = openai.chat.completions.create(
-                model="gpt-4o-mini",  # GPT-4o vision model
-                messages=[
-                    {"role": "system", "content": "You are an AI detection assistant."},
-                    {"role": "user", "content": "Check if this image is AI-generated and return a probability between 0 and 1."}
-                ],
-                input=img_file  # pass the actual image file
+            # Use the OpenAI Images "generation detection" endpoint
+            response = openai.images.analyze(
+                model="gpt-image-clip",
+                file=img_file
             )
 
-        result_text = response.choices[0].message.content.strip()
-        print("OpenAI AI detection response:", result_text)
+        # The response usually contains "ai_likelihood" or similar
+        # Adjust this depending on the actual OpenAI response
+        ai_prob = response.get("ai_likelihood", 0)
 
-        match = re.search(r"([0-1](?:\.\d+)?)", result_text)
-        ai_prob = float(match.group(1)) if match else 0
+        print("OpenAI AI detection response:", response)
         return ai_prob
 
     except Exception as e:
-        print(f"⚠️ AI detection via OpenAI failed: {e}")
+        print(f"⚠️ AI detection failed: {e}")
         return 0
+
 
 
 # ===== MAIN =====
 def main():
+
     images = get_changed_images()
+
     if not images:
         print("No new images found in this PR.")
         return
@@ -93,6 +138,7 @@ def main():
     failed = False
 
     for img in images:
+
         print(f"\n🔍 Checking {img}...")
 
         if not os.path.isfile(img):
@@ -109,6 +155,7 @@ def main():
 
         # plagiarism detection
         plag = check_plagiarism(img)
+
         if plag:
             print(f"❌ {img} appears to exist elsewhere online.")
             failed = True
