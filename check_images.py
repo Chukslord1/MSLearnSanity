@@ -1,69 +1,98 @@
 import os
 import sys
 import requests
-from base64 import b64encode
 
-# ====== CONFIG ======
 SIGHTENGINE_USER = os.getenv("SIGHTENGINE_USER")
 SIGHTENGINE_SECRET = os.getenv("SIGHTENGINE_SECRET")
-IMAGGA_KEY = os.getenv("IMAGGA_KEY")
-IMAGGA_SECRET = os.getenv("IMAGGA_SECRET")
+GOOGLE_VISION_KEY = os.getenv("GOOGLE_VISION_KEY")
 
 AI_THRESHOLD = 0.85
-PLAGIARISM_THRESHOLD = 1  # minimal number of similar images to flag
+PLAGIARISM_THRESHOLD = 1
 
 
-# ====== GET CHANGED IMAGES ======
+# ===== GET CHANGED IMAGES =====
 def get_changed_images():
     changed = os.getenv("CHANGED_FILES", "")
     files = changed.splitlines()
+
     images = [
-        f.strip() for f in files if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
+        f.strip()
+        for f in files
+        if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))
     ]
+
     return images
 
 
-# ====== IMAGGA REVERSE IMAGE SEARCH ======
+# ===== GET IMAGE URL FROM ENV =====
+def get_image_url(image_path):
+
+    name = os.path.basename(image_path)
+
+    env_name = f"IMAGE_URL_{name}"
+
+    url = os.getenv(env_name)
+
+    if not url:
+        print(f"⚠️ No public URL found for {image_path}")
+        return None
+
+    return url
+
+
+# ===== GOOGLE VISION REVERSE IMAGE SEARCH =====
 def check_plagiarism(image_path):
-    if not os.path.isfile(image_path):
-        print(f"⚠️ File not found for plagiarism check: {image_path}")
+
+    image_url = get_image_url(image_path)
+
+    if not image_url:
         return False
 
     try:
-        with open(image_path, "rb") as f:
-            encoded_image = b64encode(f.read()).decode("utf-8")
 
-        auth = (IMAGGA_KEY, IMAGGA_SECRET)
         response = requests.post(
-            "https://api.imagga.com/v2/similar_images",
-            auth=auth,
-            files={"image": (os.path.basename(image_path), open(image_path, "rb"))},
+            f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_KEY}",
+            json={
+                "requests": [
+                    {
+                        "image": {"source": {"imageUri": image_url}},
+                        "features": [{"type": "WEB_DETECTION"}]
+                    }
+                ]
+            },
             timeout=30
         )
 
         if response.status_code != 200:
-            print("⚠️ Imagga request failed:", response.text)
+            print("⚠️ Google Vision request failed:", response.text)
             return False
 
         data = response.json()
-        similar_images = data.get("result", {}).get("similar_images", [])
 
-        print(f"🔎 Candidate URLs found: {len(similar_images)}")
-        return len(similar_images) >= PLAGIARISM_THRESHOLD
+        web = data["responses"][0].get("webDetection", {})
+
+        matches = web.get("pagesWithMatchingImages", [])
+
+        print(f"🔎 Matching pages found: {len(matches)}")
+
+        return len(matches) >= PLAGIARISM_THRESHOLD
 
     except Exception as e:
         print(f"⚠️ Plagiarism check failed: {e}")
         return False
 
 
-# ====== AI DETECTION (Sightengine) ======
+# ===== AI DETECTION =====
 def check_ai(image_path):
+
     if not os.path.isfile(image_path):
-        print(f"⚠️ File not found for AI check: {image_path}")
+        print(f"⚠️ File not found: {image_path}")
         return 0
 
     try:
+
         with open(image_path, "rb") as img:
+
             response = requests.post(
                 "https://api.sightengine.com/1.0/check.json",
                 files={"media": img},
@@ -76,6 +105,7 @@ def check_ai(image_path):
             )
 
         data = response.json()
+
         return data.get("genai", {}).get("prob", 0)
 
     except Exception as e:
@@ -83,13 +113,11 @@ def check_ai(image_path):
         return 0
 
 
-# ====== MAIN ======
+# ===== MAIN =====
 def main():
-    if not (IMAGGA_KEY and IMAGGA_SECRET):
-        print("❌ IMAGGA_KEY or IMAGGA_SECRET not found in environment.")
-        sys.exit(1)
 
     images = get_changed_images()
+
     if not images:
         print("No new images found in this PR.")
         return
@@ -97,7 +125,9 @@ def main():
     failed = False
 
     for img in images:
+
         print(f"\n🔍 Checking {img}...")
+
         if not os.path.isfile(img):
             print(f"⚠️ Skipping missing file: {img}")
             continue
@@ -105,12 +135,14 @@ def main():
         # AI detection
         ai_prob = check_ai(img)
         print(f"🤖 AI probability: {ai_prob}")
+
         if ai_prob >= AI_THRESHOLD:
             print(f"❌ {img} appears AI-generated.")
             failed = True
 
-        # Plagiarism detection
+        # plagiarism detection
         plag = check_plagiarism(img)
+
         if plag:
             print(f"❌ {img} appears to exist elsewhere online.")
             failed = True
