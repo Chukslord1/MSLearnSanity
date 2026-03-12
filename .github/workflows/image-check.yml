@@ -43,20 +43,20 @@ jobs:
       # 5️⃣ Generate raw GitHub URLs
       - name: Generate GitHub raw URLs
         run: |
-
+      
           echo "${{ steps.changed.outputs.all_changed_files }}" > files.txt
-
+      
           while read img; do
             if [[ "$img" =~ \.(png|jpg|jpeg|webp)$ ]]; then
-
-              RAW_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.head_ref }}/$img"
-
+      
+              RAW_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/$img"
+      
               ENV_NAME="IMAGE_URL_$(basename "$img")"
-
+      
               echo "$ENV_NAME=$RAW_URL" >> $GITHUB_ENV
-
+      
               echo "Set $ENV_NAME → $RAW_URL"
-
+      
             fi
           done < files.txt
 
