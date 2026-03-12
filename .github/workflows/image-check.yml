@@ -70,4 +70,5 @@ jobs:
           COPYSEEKER_KEY: ${{ secrets.COPYSEEKER_KEY }}
           SIGHTENGINE_USER: ${{ secrets.SIGHTENGINE_USER }}
           SIGHTENGINE_SECRET: ${{ secrets.SIGHTENGINE_SECRET }}
+          IMAGGA_KEY: ${{ secrets.IMAGGA_KEY }}
         run: python check_images.py
