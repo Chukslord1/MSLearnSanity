@@ -97,6 +97,10 @@ def check_ai(image_path):
         print(f"⚠️ File not found: {image_path}")
         return 0
 
+    if not SIGHTENGINE_USER or not SIGHTENGINE_SECRET:
+        print("⚠️ Sightengine credentials missing.")
+        return 0
+
     try:
 
         with open(image_path, "rb") as img:
@@ -112,14 +116,25 @@ def check_ai(image_path):
                 timeout=30
             )
 
+        if response.status_code != 200:
+            print("⚠️ Sightengine request failed:", response.text)
+            return 0
+
         data = response.json()
 
-        return data.get("genai", {}).get("prob", 0)
+        # Debug print (helps verify API works)
+        print("Sightengine response:", data)
+
+        genai = data.get("genai", {})
+
+        prob = genai.get("prob", 0)
+
+        return prob
 
     except Exception as e:
         print(f"⚠️ AI detection failed: {e}")
         return 0
-
+        
 
 # ===== MAIN =====
 def main():
