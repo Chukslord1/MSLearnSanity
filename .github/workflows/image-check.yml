@@ -71,4 +71,5 @@ jobs:
           SIGHTENGINE_USER: ${{ secrets.SIGHTENGINE_USER }}
           SIGHTENGINE_SECRET: ${{ secrets.SIGHTENGINE_SECRET }}
           IMAGGA_KEY: ${{ secrets.IMAGGA_KEY }}
+          IMAGGA_SECRET: ${{ secrets.IMAGGA_SECRET }}
         run: python check_images.py
